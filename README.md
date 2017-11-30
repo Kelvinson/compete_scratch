@@ -5,7 +5,7 @@ I imported the competitive environment from OpenAI's repo and revised the ppo al
 
 The error is as follows:
 <img src="https://github.com/Kelvinson/compete_scratch/blob/master/srcode.png">
-<img src="https://github.com/Kelvinson/compete_scratch/blob/master/srcode.png">
+<img src="https://github.com/Kelvinson/compete_scratch/blob/master/error.png">
 
 - main.py: the entry of the program
 - policy.py: the policy network
