@@ -7,7 +7,7 @@ The error is as follows:
 <img src="https://github.com/Kelvinson/compete_scratch/blob/master/srcode.png">
 <img src="https://github.com/Kelvinson/compete_scratch/blob/master/srcode.png">
 
-main.py: the entry of the program
-policy.py: the policy network
-learn.py: learn and update the network
-utils.py: trajectory geneator function and  advantage generator function
+- main.py: the entry of the program
+- policy.py: the policy network
+- learn.py: learn and update the network
+- utils.py: trajectory geneator function and  advantage generator function
