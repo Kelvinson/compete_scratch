@@ -14,13 +14,13 @@ from baselines import logger, bench
 from learn import compete_learn
 
 
-def train(args):
-    if args.env == "sumo-ants":
+def train(env, seed):
+    if env == "sumo-ants":
         env = gym.make("sumo-ants-v0")
     else:
         print("right now I only support sumo-ants-v0")
         sys.exit()
-    seed = args.seed
+    # seed = args.seed
     num_timesteps = 10
     from baselines.ppo1 import mlp_policy, pposgd_simple
     U.make_session(num_cpu=1).__enter__()
@@ -37,13 +37,10 @@ def train(args):
     def policy_fn(pi_name, ob_space, ac_space):
         scope = pi_name
         return LSTMPolicy(scope=scope, reuse=False,
-                                     ob_space=env.observation_space,
-                                     ac_space=env.action_space,
+                                     ob_space=ob_space,
+                                     ac_space=ac_space,
                                      hiddens=[128, 128], normalize=True)
 
-    env = bench.Monitor(env, logger.get_dir() and
-        osp.join(logger.get_dir(), "monitor.json"))
-    env.seed(seed)
     gym.logger.setLevel(logging.WARN)
     compete_learn(env, policy_fn,
             max_timesteps=num_timesteps,
@@ -52,4 +49,13 @@ def train(args):
             optim_epochs=10, optim_stepsize=3e-4, optim_batchsize=64,
             gamma=0.99, lam=0.95, schedule='constant', #T
         )
+
     env.close()
+
+if __name__ == "__main__":
+    # p = argparse.ArgumentParser(description="Environments for Multi-agent competition")
+    # p.add_argument("--env", default="sumo-ants", type=str, help="competitive environment: run-to-goal-humans, run-to-goal-ants, you-shall-not-pass, sumo-humans, sumo-ants, kick-and-defend")
+    # p.add_argument("--seed", default=123, required=True, type=str)
+    #
+    # args = p.parse_args()
+    train(env="sumo-ants", seed = 123)

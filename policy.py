@@ -3,7 +3,8 @@ import numpy as np
 import gym
 import logging
 import copy
-
+from baselines.common.distributions import make_pdtype
+import baselines.common.tf_util as U
 from tensorflow.contrib import layers
 
 class Policy(object):
@@ -22,8 +23,8 @@ class LSTMPolicy(Policy):
             self.scope = tf.get_variable_scope().name
 
             assert isinstance(ob_space, gym.spaces.Box)
-
-            self.observation_ph = tf.placeholder(tf.float32, [None, None] + list(ob_space.shape), name="observation")
+            self.pdtype = pdtype = make_pdtype(ac_space)
+            self.observation_ph = U.get_placeholder(name="observation",dtype=tf.float32, shape=[None, None] + list(ob_space.shape))
             self.stochastic_ph = tf.placeholder(tf.bool, (), name="stochastic")
             self.taken_action_ph = tf.placeholder(dtype=tf.float32, shape=[None, None, ac_space.shape[0]], name="taken_action")
 
@@ -82,6 +83,36 @@ class LSTMPolicy(Policy):
 
             for p in self.get_trainable_variables():
                 tf.add_to_collection(tf.GraphKeys.REGULARIZATION_LOSSES, tf.reduce_sum(tf.square(p)))
+
+        def make_feed_dict(self, observation, state_in, taken_action):
+            return {
+                self.observation_ph: observation,
+                self.state_in_ph: list(np.transpose(state_in, (1, 0, 2))),
+                self.taken_action_ph: taken_action
+            }
+
+    def act(self, observation, stochastic=True):
+        outputs = [self.sampled_action, self.vpred, self.state_out]
+        a, v, s = tf.get_default_session().run(outputs, {
+            self.observation_ph: observation[None, None],
+            self.state_in_ph: list(self.state[:, None, :]),
+            self.stochastic_ph: stochastic})
+        self.state = []
+        for x in s:
+            self.state.append(x.c[0])
+            self.state.append(x.h[0])
+        self.state = np.array(self.state)
+        return a[0, 0], {'vpred': v[0, 0], 'state': self.state}
+
+    def get_variables(self):
+        return tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, self.scope)
+
+    def get_trainable_variables(self):
+        return tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, self.scope)
+
+    def reset(self):
+        self.state = self.zero_state
+
 
 class RunningMeanStd(object):
     def __init__(self, scope="running", reuse=False, epsilon=1e-2, shape=()):
