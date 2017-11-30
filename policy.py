@@ -87,18 +87,18 @@ class LSTMPolicy(Policy):
             for p in self.get_trainable_variables():
                 tf.add_to_collection(tf.GraphKeys.REGULARIZATION_LOSSES, tf.reduce_sum(tf.square(p)))
 
-        def make_feed_dict(self, observation, state_in, taken_action):
-            return {
-                self.observation_ph: observation,
-                self.state_in_ph: list(np.transpose(state_in, (1, 0, 2))),
-                self.taken_action_ph: taken_action
-            }
+    # def make_feed_dict(self, observation, state_in, taken_action):
+    #         return {
+    #             self.observation_ph: observation,
+    #             self.state_in_ph: list(np.transpose(state_in, (1, 0, 2))),
+    #             self.taken_action_ph: taken_action
+    #         }
 
     def act(self, observation, stochastic=True):
         outputs = [self.sampled_action, self.vpred, self.state_out]
         a, v, s = tf.get_default_session().run(outputs, {
             self.observation_ph: observation[None, None],
-            self.state_in_ph: list(self.state[:, None, :]),
+            self.state_in_ph: list(self.state[:,None, :]),
             self.stochastic_ph: stochastic})
         self.state = []
         for x in s:

@@ -88,8 +88,8 @@ def compete_learn(env, policy_func, *,
     adam = [MpiAdam(var_list[i], epsilon=adam_epsilon) for i in range(2)]
 
     #TODO: I wonder this cannot function as expected because the result is a list of functions, not will not execute automatically
-    assign_old_eq_new = [U.function([],[], updates=[tf.assign(oldv, newv)
-        for (oldv, newv) in zipsame(oldpi[i].get_variables(), pi[i].get_variables())]) for i in range(len1)]
+    # assign_old_eq_new = [U.function([],[], updates=[tf.assign(oldv, newv)
+    #     for (oldv, newv) in zipsame(oldpi[i].get_variables(), pi[i].get_variables())]) for i in range(len1)]
 
     # compute_losses is a function, so it should not be copied to copies, nevertheless the parameters should be
     # passed into it as the two agents
@@ -148,7 +148,9 @@ def compete_learn(env, policy_func, *,
 
             #TODO: I have to make suer how assign_old_ea_new works and whether to assign it for each agent
             #Yes I can assure it will work now
-            assign_old_eq_new[i]() # set old parameter values to new parameter values
+            U.function([], [], updates=[tf.assign(oldv, newv)
+            for (oldv, newv) in zipsame(oldpi[i].get_variables(), pi[i].get_variables())])()
+             # set old parameter values to new parameter values
         # Here we do a bunch of optimization epochs over the data
             for _ in range(optim_epochs):
                 losses[i] = [] # list of tuples, each of which gives the loss for a minibatch

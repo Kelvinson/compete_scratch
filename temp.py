@@ -24,6 +24,7 @@ def train(env, seed):
     num_timesteps = 10
     from baselines.ppo1 import mlp_policy, pposgd_simple
     U.make_session(num_cpu=1).__enter__()
+    # env = bench.Monitor(env, logger.get_dir())
     set_global_seeds(seed)
 
     # policy = []
