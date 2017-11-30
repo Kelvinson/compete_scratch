@@ -46,6 +46,7 @@ def train(env, seed):
     gym.logger.setLevel(logging.WARN)
     compete_learn(env, policy_fn,
             max_timesteps=num_timesteps,
+            #TODO:remember to change it to 2048
             timesteps_per_batch=2048,
             clip_param=0.2, entcoeff=0.0,
             optim_epochs=10, optim_stepsize=3e-4, optim_batchsize=64,

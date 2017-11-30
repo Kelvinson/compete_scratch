@@ -5,6 +5,9 @@ import logging
 import copy
 from baselines.common.distributions import make_pdtype
 import baselines.common.tf_util as U
+from mpi4py import MPI
+import tensorflow as tf, baselines.common.tf_util as U, numpy as np
+
 from tensorflow.contrib import layers
 
 class Policy(object):
@@ -113,7 +116,6 @@ class LSTMPolicy(Policy):
     def reset(self):
         self.state = self.zero_state
 
-
 class RunningMeanStd(object):
     def __init__(self, scope="running", reuse=False, epsilon=1e-2, shape=()):
         with tf.variable_scope(scope, reuse=reuse):
@@ -137,6 +139,23 @@ class RunningMeanStd(object):
             self.mean = tf.to_float(self._sum / self._count)
             var_est = tf.to_float(self._sumsq / self._count) - tf.square(self.mean)
             self.std = tf.sqrt(tf.maximum(var_est, 1e-2))
+            newsum = tf.placeholder(shape=self.shape, dtype=tf.float32, name='sum')
+            newsumsq = tf.placeholder(shape=self.shape, dtype=tf.float32, name='var')
+            newcount = tf.placeholder(shape=[], dtype=tf.float32, name='count')
+            self.incfiltparams = U.function([newsum, newsumsq, newcount], [],
+                                            updates=[tf.assign_add(self._sum, newsum),
+                                                     tf.assign_add(self._sumsq, newsumsq),
+                                                     tf.assign_add(self._count, newcount)])
+
+    def update(self, x):
+        x = x.astype('float32')
+        n = int(np.prod(self.shape))
+        totalvec = np.zeros(n * 2 + 1, 'float32')
+        addvec = np.concatenate(
+            [x.sum(axis=0).ravel(), np.square(x).sum(axis=0).ravel(), np.array([len(x)], dtype='float32')])
+        MPI.COMM_WORLD.Allreduce(addvec, totalvec, op=MPI.SUM)
+        self.incfiltparams(totalvec[0:n].reshape(self.shape), totalvec[n:2 * n].reshape(self.shape),
+                           totalvec[2 * n])
 
 
 def dense(x, size, name, weight_init=None, bias=True):

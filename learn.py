@@ -44,9 +44,9 @@ def compete_learn(env, policy_func, *,
     # ob=U.get_placeholder_cached(name="ob")
     #TODO: here it is a bug to fix, I think the get_placeholder_cached is global, you can only cache observation once and the next time if it finds the name placeholder it will return the previous placeholder, I don't know whether different namescope have  effect on this.
     # ob1 = U.get_placeholder_cached(name="observation1") # Note: I am not sure about this point
-    # ob2 = U.get_placeholder_cached(name="observation2")
-    ob1 = U.get_placeholder_cached(name="observation0")  # Note: I am not sure about this point
-    ob2 = U.get_placeholder_cached(name="observation1")
+    # # ob2 = U.get_placeholder_cached(name="observation2")
+    # ob1 = U.get_placeholder_cached(name="observation0")  # Note: I am not sure about this point
+    # ob2 = U.get_placeholder_cached(name="observation1")
     #TODO: the only one question now is that pi network and oldpi networ both have the ob_ph named "observation", even in the original baseline implementation, does pi and oldpi share the observation placeholder, I think it is not
     ob = [U.get_placeholder_cached(name="observation"+str(i)) for i in range(len1)]
     # ac = tuple([pi[i].act(stochastic=True, observation=env.observation_space[i])[0]
@@ -101,7 +101,7 @@ def compete_learn(env, policy_func, *,
     adam[1].sync()
     # Prepare for rollouts
     # ----------------------------------------
-    seg_gen = traj_segment_generator(pi, env, timesteps_per_batch, stochastic=True)
+    seg_gen = traj_segment_generator(pi, env, horizon=timesteps_per_batch, stochastic=True)
 
     episodes_so_far = 0
     timesteps_so_far = 0
@@ -137,6 +137,8 @@ def compete_learn(env, policy_func, *,
         losses = [[] for i in range(len1)]
         for i in range(len1):
             ob[i], ac[i], atarg[i], tdlamret[i]= seg["ob"][i], seg["ac"][i], seg["adv"][i], seg["tdlamret"][i]
+            # ob_extend = np.expand_dims(ob[i],axis=0)
+            # ob[i] = ob_extend
             vpredbefore = seg["vpred"][i] # predicted value function before udpate
             atarg[i] = (atarg[i] - atarg[i].mean()) / atarg[i].std() # standardized advantage function estimate
             d= Dataset(dict(ob=ob[i], ac=ac[i], atarg=atarg[i], vtarg=tdlamret[i]), shuffle=not pi[i].recurrent)
@@ -151,6 +153,7 @@ def compete_learn(env, policy_func, *,
             for _ in range(optim_epochs):
                 losses[i] = [] # list of tuples, each of which gives the loss for a minibatch
                 for batch in d.iterate_once(optim_batchsize):
+                    batch["ob"] = np.expand_dims(batch["ob"], axis=0)
                     *newlosses, g = lossandgrad[i](batch["ob"], batch["ac"], batch["atarg"], batch["vtarg"], cur_lrmult)
                     adam[i].update(g, optim_stepsize * cur_lrmult)
                     losses[i].append(newlosses)

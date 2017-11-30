@@ -19,7 +19,7 @@ input: pi: a tuple of two polices,
        should be stochastic
 """
 def traj_segment_generator(pi, env, horizon, stochastic):
-    # assert(len(pi) == 2,"this policy network in the environment must be a tuple of multiple agetns")
+    assert(len(pi) == 2,"this policy network in the environment must be a tuple of multiple agetns")
     len1 = len(env.agents)
     t = 0
     # ac is a tuple of multiple agents' actions
@@ -55,8 +55,8 @@ def traj_segment_generator(pi, env, horizon, stochastic):
         prevac = ac
         # don't know how it will differ from get ac and predicted value simutanously
         # I think it should be done in that way, however I don't know how to get tuple of tuples
-        ac = [pi[i].act(ob[i], stochastic)[0] for i in range(len1)]
-        vpred = [pi[i].act(ob[i], stochastic)[1]['vpred'] for i in range(len1)]
+        ac = [pi[i].act(observation=ob[i], stochastic=stochastic)[0] for i in range(len1)]
+        vpred = [pi[i].act(observation=ob[i], stochastic=stochastic)[1]['vpred'] for i in range(len1)]
         # ac, vpred = pi.act(stochastic, ob)
         # Slight weirdness here because we need value function at time T
         # before returning segment [0, T-1] so we get the correct
@@ -79,6 +79,7 @@ def traj_segment_generator(pi, env, horizon, stochastic):
             prevacs[j][i] = prevac[j]
 
         #now it is time to turn ac to tuple to feed into env.step function
+        # print("at timestamp {} the rewards are {} {}.".format(t,rewrd[0], rewrd[1]));
         ac = tuple(ac)
         ob, rew, new, info = env.step(ac)
 
@@ -93,6 +94,7 @@ def traj_segment_generator(pi, env, horizon, stochastic):
             cur_ep_ret[j] += rewrd
             cur_ep_len[j] += 1
 
+        print("at timestamp {} the rewards are {} {}.".format(t, rews[0][i], rews[1][i]))
         if new[0] or new[1]:
             for j in range(len1):
                 ep_rets[j].append(cur_ep_ret[j])
@@ -133,40 +135,13 @@ def add_vtarg_and_adv(seg, gamma, lam):
     seg["adv"] = tmpadv
     seg["tdlamret"] = tmplamret
 
-
-    len1 = 2
-    gaelam = [np.zeros(()) for i in range(len1)]
-    new = [np.zeros(()) for i in range(len1)]
-    vpred = [np.zeros(()) for i in range(len1)]
-    rew = [np.zeros(()) for i in range(len1)]
-    lastgaelam = [0.0 for i in range(len1)]
-    for j in range(len1):
-        new[j] = np.append(seg["new"][j], 0) # last element is only used for last vtarg, but we already zeroed it if last new = 1
-        vpred[j] = np.append(seg["vpred"][j], seg["nextvpred"][j])
-        T = len(seg["rew"][j])
-        seg["adv"][j] = gaelam[j] = np.empty(T, 'float32')
-        rew[j] = seg["rew"][j]
-        lastgaelam[j] = 0
-        for t in reversed(range(T)):
-            nonterminal = 1-new[j][t+1]
-            delta = rew[j][t] + gamma * vpred[j][t+1] * nonterminal - vpred[j][t]
-
-            lastgaelam[j] = delta + gamma * lam * nonterminal * lastgaelam[j]
-            gaelam[j][t] = lastgaelam[j]
-        seg["tdlamret"][j] = seg["adv"][j] + seg["vpred"][j]
-    seg["adv"] = [gaelam[j] for j in range(len1)]
-    seg["tdlamret"] = []
-
-
 def flatten_lists(listoflists):
     return [el for list_ in listoflists for el in list_]
-
 
 def load_from_file(param_pkl_path):
     with open(param_pkl_path, 'rb') as f:
         params = pickle.load(f)
     return params
-
 
 def setFromFlat(var_list, flat_params):
     shapes = list(map(lambda x: x.get_shape().as_list(), var_list))
