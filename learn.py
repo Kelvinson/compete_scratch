@@ -30,47 +30,61 @@ def compete_learn(env, policy_func, *,
     len1 = len(env.agents)
     ob_space = env.observation_space.spaces
     ac_space = env.action_space.spaces
-    pi = [policy_func("pi" + str(i), ob_space[i], ac_space[i]) for i in range(len1)]
-    oldpi = [policy_func("oldpi" + str(i), ob_space[i], ac_space[i]) for i in range(len1)]
+    pi = [policy_func("pi" + str(i), ob_space[i], ac_space[i],placeholder_name="observation"+str(i)) for i in range(len1)]
+    oldpi = [policy_func("oldpi" + str(i), ob_space[i], ac_space[i], placeholder_name="observation"+str(i)) for i in range(len1)]
     atarg = [tf.placeholder(dtype=tf.float32, shape=[None]) for i in range(len1)]
     ret = [tf.placeholder(dtype=tf.float32, shape=[None]) for i in range(len1)]
     tdlamret = [[] for i in range(len1)]
     # TODO: here I should revise lrmult to as it was before
-    lrmult = 1.0 # here for simple I only use constant learning rate multiplier
+    # lrmult = 1.0 # here for simple I only use constant learning rate multiplier
+    lrmult = tf.placeholder(name='lrmult', dtype=tf.float32, shape=[]) # learning rate multiplier, updated with schedule
     clip_param = clip_param * lrmult
 
     #TODO: this point I cannot finally understand it, originally it is
     # ob=U.get_placeholder_cached(name="ob")
-    #TODO: here it is a bug to fix, I think the get_placeholder_cached is global, you can
-    # only cache observation once and the next time if it finds the name placeholder it
-    # will return the previous placeholder, I don't know whether different namescope have
-    # effect on this.
-    ob = U.get_placeholder_cached(name="observation") # Note: I am not sure about this point
-
+    #TODO: here it is a bug to fix, I think the get_placeholder_cached is global, you can only cache observation once and the next time if it finds the name placeholder it will return the previous placeholder, I don't know whether different namescope have  effect on this.
+    # ob1 = U.get_placeholder_cached(name="observation1") # Note: I am not sure about this point
+    # ob2 = U.get_placeholder_cached(name="observation2")
+    ob1 = U.get_placeholder_cached(name="observation0")  # Note: I am not sure about this point
+    ob2 = U.get_placeholder_cached(name="observation1")
+    #TODO: the only one question now is that pi network and oldpi networ both have the ob_ph named "observation", even in the original baseline implementation, does pi and oldpi share the observation placeholder, I think it is not
+    ob = [U.get_placeholder_cached(name="observation"+str(i)) for i in range(len1)]
     # ac = tuple([pi[i].act(stochastic=True, observation=env.observation_space[i])[0]
     #      for i in range(len1)])
     # TODO: here for the policy to work I changed the observation parameter passed into the pi function to s which comes from env.reset()
-    s = env.reset()
-    ac = tuple([pi[i].act(stochastic=True, observation=s[i])[0]
-                for i in range(len1)])
-    kloldnew = tuple([oldpi[i].pd.kl(pi[i].pd) for i in range(len1)])
-    ent = tuple([pi[i].pd.entropy for i in range(len1)])
-    meankl = tuple(U.mean(kloldnew[i]) for i in range(len1))
-    meanent = tuple([U.mean(ent[i]) for i in range(len1)])
+    # s = env.reset()
+    # ac = tuple([pi[i].act(stochastic=True, observation=s[i])[0]
+    #             for i in range(len1)])
 
-    pol_entpen = tuple([(-entcoeff) * meanent[i]] for i in range(len1))
-    ratio = tuple(tf.exp(pi[i].pd.logp(ac[i] - oldpi.pd.logp(ac[i]))) for i in range(len1)) #pnew / pold
-    surr1 = tuple([ratio * atarg[i] for i in range(len1)])
+    ac = [pi[i].pdtype.sample_placeholder([None]) for i in range (len1)]
+    kloldnew = [oldpi[i].pd.kl(pi[i].pd) for i in range(len1)]
+    ent = [pi[i].pd.entropy() for i in range(len1)]
+    print("ent1 and ent2 are {} and {}".format(ent[0], ent[1]))
+    meankl = [U.mean(kloldnew[i]) for i in range(len1)]
+    meanent = [U.mean(ent[i]) for i in range(len1)]
+
+    pol_entpen = [(-entcoeff) * meanent[i] for i in range(len1)]
+    ratio = [tf.exp(pi[i].pd.logp(ac[i] - oldpi[i].pd.logp(ac[i]))) for i in range(len1)] #pnew / pold
+    surr1 = [ratio[i] * atarg[i] for i in range(len1)]
     # U.clip = tf.clip_by_value(t, clip_value_min, clip_value_max,name=None):
-    # among which t is A 'Tensor' so
+    # # among which t is A 'Tensor' so
     surr2 = [U.clip(ratio[i], 1.0 - clip_param, 1.0 + clip_param) for i in range(len1)]
     pol_surr = [-U.mean(tf.minimum(surr1[i], surr2[i])) for i in range(len1)]
     vf_loss = [U.mean(tf.square(pi[i].vpred - ret[i])) for i in range(len1)]
     total_loss = [pol_surr[i] + pol_entpen[i] + vf_loss[i] for i in range(len1)]
-    losses = [pol_surr, pol_entpen, vf_loss, meankl, meanent]
+    # here I ccome to realize that the following miscelleous losses are just operations not tensors so they should be
+    # # be made to a list to contain the info of the two agents
+    # surr2 = U.clip(ratio[i], 1.0 - clip_param, 1.0 + clip_param)
+    # pol_surr = -U.mean(tf.minimum(surr1[i], surr2[i]))
+    # vf_loss = U.mean(tf.square(pi[i].vpred - ret[i]))
+    # total_loss = pol_surr + pol_entpen + vf_loss
+
+    #TODO: in another way I choose to revise losses to following:
+    losses = [[pol_surr[i], pol_entpen[i], vf_loss[i], meankl[i], meanent[i]] for i in range(len1)]
     loss_names = ["pol_sur", "pol_entpen","vf_loss", "kl", "ent"]
     var_list = [pi[i].get_trainable_variables() for i in range(len1)]
-    lossandgrad = U.function([ob, ac, atarg, ret, lrmult], losses + [U.flatgrad(total_loss, var_list)])
+
+    lossandgrad = [U.function([ob[i], ac[i], atarg[i], ret[i], lrmult], losses[i] + [U.flatgrad(total_loss[i], var_list[i])]) for i in range(len1)]
     adam = [MpiAdam(var_list[i], epsilon=adam_epsilon) for i in range(2)]
 
     #TODO: I wonder this cannot function as expected because the result is a list of functions, not will not execute automatically
@@ -79,7 +93,7 @@ def compete_learn(env, policy_func, *,
 
     # compute_losses is a function, so it should not be copied to copies, nevertheless the parameters should be
     # passed into it as the two agents
-    compute_losses = U.function([ob, ac, atarg, ret, lrmult], losses)
+    compute_losses = [U.function([ob[i], ac[i], atarg[i], ret[i], lrmult], losses[i]) for i in range(len1)]
 
     U.initialize()
     # [adam[i].sync() for i in range(2)]
@@ -120,7 +134,7 @@ def compete_learn(env, policy_func, *,
         #TODO: I got to fix this function to let it return the right seg["adv"] and seg["lamret"]
         add_vtarg_and_adv(seg, gamma, lam)
 
-
+        losses = [[] for i in range(len1)]
         for i in range(len1):
             ob[i], ac[i], atarg[i], tdlamret[i]= seg["ob"][i], seg["ac"][i], seg["adv"][i], seg["tdlamret"][i]
             vpredbefore = seg["vpred"][i] # predicted value function before udpate
@@ -131,18 +145,19 @@ def compete_learn(env, policy_func, *,
             if hasattr(pi[i], "ob_rms"): pi[i].ob_rms.update(ob[i]) # update running mean/std for policy
 
             #TODO: I have to make suer how assign_old_ea_new works and whether to assign it for each agent
+            #Yes I can assure it will work now
             assign_old_eq_new[i]() # set old parameter values to new parameter values
         # Here we do a bunch of optimization epochs over the data
             for _ in range(optim_epochs):
                 losses[i] = [] # list of tuples, each of which gives the loss for a minibatch
                 for batch in d.iterate_once(optim_batchsize):
-                    *newlosses, g = lossandgrad(batch["ob"], batch["ac"], batch["atarg"], batch["vtarg"], cur_lrmult)
+                    *newlosses, g = lossandgrad[i](batch["ob"], batch["ac"], batch["atarg"], batch["vtarg"], cur_lrmult)
                     adam[i].update(g, optim_stepsize * cur_lrmult)
                     losses[i].append(newlosses)
 
             losses[i] = []
             for batch in d.iterate_once(optim_batchsize):
-                newlosses = compute_losses(batch["ob"], batch["ac"], batch["atarg"], batch["vtarg"], scur_lrmult)
+                newlosses = compute_losses[i](batch["ob"], batch["ac"], batch["atarg"], batch["vtarg"], cur_lrmult)
                 losses[i].append(newlosses)
 
             lrlocal = (seg["ep_lens"][i], seg["ep_rets"][i]) # local values

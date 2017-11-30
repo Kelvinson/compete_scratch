@@ -34,12 +34,14 @@ def train(env, seed):
     #                                  ac_space=env.action_space.spaces[i],
     #                                  hiddens=[64, 64], normalize=True))
 
-    def policy_fn(pi_name, ob_space, ac_space):
+    def policy_fn(pi_name, ob_space, ac_space, placeholder_name):
         scope = pi_name
         return LSTMPolicy(scope=scope, reuse=False,
                                      ob_space=ob_space,
                                      ac_space=ac_space,
-                                     hiddens=[128, 128], normalize=True)
+                                     hiddens=[128, 128], normalize=True
+                                     ,placeholder_name=placeholder_name)
+
 
     gym.logger.setLevel(logging.WARN)
     compete_learn(env, policy_fn,

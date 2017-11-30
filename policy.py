@@ -16,7 +16,7 @@ class Policy(object):
         raise NotImplementedError()
 
 class LSTMPolicy(Policy):
-    def __init__(self, scope, *, ob_space, ac_space, hiddens, reuse=False, normalize=False):
+    def __init__(self, scope, *, ob_space, ac_space, hiddens, placeholder_name, reuse=False, normalize=False):
         self.recurrent = True
         self.normalized = normalize
         with tf.variable_scope(scope, reuse=reuse):
@@ -24,7 +24,7 @@ class LSTMPolicy(Policy):
 
             assert isinstance(ob_space, gym.spaces.Box)
             self.pdtype = pdtype = make_pdtype(ac_space)
-            self.observation_ph = U.get_placeholder(name="observation",dtype=tf.float32, shape=[None, None] + list(ob_space.shape))
+            self.observation_ph = U.get_placeholder(name=placeholder_name,dtype=tf.float32, shape=[None, None] + list(ob_space.shape))
             self.stochastic_ph = tf.placeholder(tf.bool, (), name="stochastic")
             self.taken_action_ph = tf.placeholder(dtype=tf.float32, shape=[None, None, ac_space.shape[0]], name="taken_action")
 
@@ -168,3 +168,16 @@ class DiagonalGaussian(object):
 
     def mode(self):
         return self.mean
+    def logp(self, x):
+        return - self.neglogp(x)
+
+    def neglogp(self,x):
+        return 0.5 * U.sum(tf.square((x - self.mean) / self.std), axis=-1) \
+               + 0.5 * np.log(2.0 * np.pi) * tf.to_float(tf.shape(x)[-1]) \
+               + U.sum(self.logstd, axis=-1)
+    def kl(self, other):
+        assert isinstance(other, DiagonalGaussian)
+        return U.sum(other.logstd - self.logstd + (tf.square(self.std) + tf.square(self.mean - other.mean)) / (2.0 * tf.square(other.std)) - 0.5, axis=-1)
+
+    def entropy(self):
+        return U.sum(self.logstd + .5 * np.log(2.0 * np.pi * np.e), axis=-1)
