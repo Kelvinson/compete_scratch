@@ -8,9 +8,11 @@ import baselines.common.tf_util as U
 import tensorflow as tf, numpy as np
 from baselines import logger, bench
 import time
+from collections import deque
 from baselines.common.mpi_adam import MpiAdam
 from mpi4py import MPI
 from utils import traj_segment_generator, add_vtarg_and_adv
+from baselines.common.mpi_moments import  mpi_moments
 
 def compete_learn(env, policy_func, *,
         timesteps_per_batch, # timesteps per actor per update
@@ -48,6 +50,7 @@ def compete_learn(env, policy_func, *,
     # ob1 = U.get_placeholder_cached(name="observation0")  # Note: I am not sure about this point
     # ob2 = U.get_placeholder_cached(name="observation1")
     #TODO: the only one question now is that pi network and oldpi networ both have the ob_ph named "observation", even in the original baseline implementation, does pi and oldpi share the observation placeholder, I think it is not
+
     ob = [U.get_placeholder_cached(name="observation"+str(i)) for i in range(len1)]
     # ac = tuple([pi[i].act(stochastic=True, observation=env.observation_space[i])[0]
     #      for i in range(len1)])
@@ -94,7 +97,8 @@ def compete_learn(env, policy_func, *,
     # compute_losses is a function, so it should not be copied to copies, nevertheless the parameters should be
     # passed into it as the two agents
     compute_losses = [U.function([ob[i], ac[i], atarg[i], ret[i], lrmult], losses[i]) for i in range(len1)]
-
+    sess = U.get_session()
+    writer = tf.summary.FileWriter(logdir='log',graph=sess.graph)
     U.initialize()
     # [adam[i].sync() for i in range(2)]
     adam[0].sync()
@@ -108,6 +112,8 @@ def compete_learn(env, policy_func, *,
     iters_so_far = 0
     tstart = time.time()
 
+    lenbuffer = [deque(maxlen=100) for i in range(len1)]  # rolling buffer for episode lengths
+    rewbuffer = [deque(maxlen=100) for i in range(len1)] # rolling buffer for episode rewards
     assert sum([max_iters>0, max_timesteps>0, max_episodes>0, max_seconds>0])==1, "Only one time constraint permitted"
 
     while True:
@@ -152,6 +158,8 @@ def compete_learn(env, policy_func, *,
             for (oldv, newv) in zipsame(oldpi[i].get_variables(), pi[i].get_variables())])()
              # set old parameter values to new parameter values
         # Here we do a bunch of optimization epochs over the data
+            logger.log("Optimizing...")
+            logger.log(fmt_row(13, loss_names))
             for _ in range(optim_epochs):
                 losses[i] = [] # list of tuples, each of which gives the loss for a minibatch
                 for batch in d.iterate_once(optim_batchsize):
@@ -159,16 +167,30 @@ def compete_learn(env, policy_func, *,
                     *newlosses, g = lossandgrad[i](batch["ob"], batch["ac"], batch["atarg"], batch["vtarg"], cur_lrmult)
                     adam[i].update(g, optim_stepsize * cur_lrmult)
                     losses[i].append(newlosses)
+                logger.log(fmt_row(13, np.mean(losses, axis=0)))
 
             losses[i] = []
             for batch in d.iterate_once(optim_batchsize):
                 newlosses = compute_losses[i](batch["ob"], batch["ac"], batch["atarg"], batch["vtarg"], cur_lrmult)
                 losses[i].append(newlosses)
+            meanlosses, _, _ = mpi_moments(losses[i], axis=0)
+            logger.log(fmt_row(13, meanlosses))
+            for (lossval, name) in zipsame(meanlosses, loss_names):
+                logger.record_tabular("loss_" + name, lossval)
+            logger.record_tabular("ev_tdlam_before", explained_variance(vpredbefore, tdlamret[i]))
 
             lrlocal = (seg["ep_lens"][i], seg["ep_rets"][i]) # local values
             listoflrpairs = MPI.COMM_WORLD.allgather(lrlocal) # list of tuples
-        lens, _ = map(flatten_lists, zip(*listoflrpairs))
+            lens, rews = map(flatten_lists, zip(*listoflrpairs))
+            lenbuffer[i].extend(lens)
+            rewbuffer[i].extend(rews)
         episodes_so_far += len(lens)
         timesteps_so_far += sum(lens)
         iters_so_far += 1
+        logger.record_tabular("EpisodesSoFar", episodes_so_far)
+        logger.record_tabular("TimestepsSoFar", timesteps_so_far)
+        logger.record_tabular("TimeElapsed", time.time() - tstart)
+        if MPI.COMM_WORLD.Get_rank() == 0:
+            logger.dump_tabular()
+
 

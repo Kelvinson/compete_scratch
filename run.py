@@ -36,8 +36,7 @@ def train(env, seed):
     #                                  hiddens=[64, 64], normalize=True))
 
     def policy_fn(pi_name, ob_space, ac_space, placeholder_name):
-        scope = pi_name
-        return LSTMPolicy(scope=scope, reuse=False,
+        return LSTMPolicy(scope=pi_name, reuse=False,
                                      ob_space=ob_space,
                                      ac_space=ac_space,
                                      hiddens=[128, 128], normalize=True
