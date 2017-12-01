@@ -7,7 +7,7 @@ import argparse
 import tensorflow as tf
 import numpy as np
 import logging
-from policy import LSTMPolicy
+from policy import LSTMPolicy, MlpPolicy
 from baselines.common import set_global_seeds, Dataset, explained_variance, fmt_row, zipsame
 import baselines.common.tf_util as U
 from baselines import logger, bench
@@ -36,11 +36,11 @@ def train(env, seed):
     #                                  hiddens=[64, 64], normalize=True))
 
     def policy_fn(pi_name, ob_space, ac_space, placeholder_name):
-        return LSTMPolicy(scope=pi_name, reuse=False,
+        return MlpPolicy(name=pi_name,
                                      ob_space=ob_space,
                                      ac_space=ac_space,
-                                     hiddens=[128, 128], normalize=True
-                                     ,placeholder_name=placeholder_name)
+                                     hid_size=64, num_hid_layers=2,
+                                     placeholder_name=placeholder_name)
 
 
     gym.logger.setLevel(logging.WARN)

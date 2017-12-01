@@ -67,7 +67,8 @@ def compete_learn(env, policy_func, *,
     meanent = [U.mean(ent[i]) for i in range(len1)]
 
     pol_entpen = [(-entcoeff) * meanent[i] for i in range(len1)]
-    ratio = [tf.exp(pi[i].pd.logp(ac[i] - oldpi[i].pd.logp(ac[i]))) for i in range(len1)] #pnew / pold
+    ratio = [tf.exp(pi[i].pd.logp(ac[i]) - oldpi[i].pd.logp(ac[i])) for i in range(len1)]
+    # ratio = [tf.exp(pi[i].pd.logp(ac) - oldpi[i].pd.logp(ac[i])) for i in range(len1)] #pnew / pold
     surr1 = [ratio[i] * atarg[i] for i in range(len1)]
     # U.clip = tf.clip_by_value(t, clip_value_min, clip_value_max,name=None):
     # # among which t is A 'Tensor' so
@@ -98,7 +99,7 @@ def compete_learn(env, policy_func, *,
     # passed into it as the two agents
     compute_losses = [U.function([ob[i], ac[i], atarg[i], ret[i], lrmult], losses[i]) for i in range(len1)]
     sess = U.get_session()
-    writer = tf.summary.FileWriter(logdir='log',graph=sess.graph)
+    writer = tf.summary.FileWriter(logdir='log-mlp',graph=sess.graph)
     U.initialize()
     # [adam[i].sync() for i in range(2)]
     adam[0].sync()
@@ -163,11 +164,11 @@ def compete_learn(env, policy_func, *,
             for _ in range(optim_epochs):
                 losses[i] = [] # list of tuples, each of which gives the loss for a minibatch
                 for batch in d.iterate_once(optim_batchsize):
-                    batch["ob"] = np.expand_dims(batch["ob"], axis=0)
+                    # batch["ob"] = np.expand_dims(batch["ob"], axis=0)
                     *newlosses, g = lossandgrad[i](batch["ob"], batch["ac"], batch["atarg"], batch["vtarg"], cur_lrmult)
                     adam[i].update(g, optim_stepsize * cur_lrmult)
                     losses[i].append(newlosses)
-                logger.log(fmt_row(13, np.mean(losses, axis=0)))
+                    logger.log(fmt_row(13, np.mean(losses[i], axis=0)))
 
             losses[i] = []
             for batch in d.iterate_once(optim_batchsize):

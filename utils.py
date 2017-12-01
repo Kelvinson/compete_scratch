@@ -55,8 +55,8 @@ def traj_segment_generator(pi, env, horizon, stochastic):
         prevac = ac
         # don't know how it will differ from get ac and predicted value simutanously
         # I think it should be done in that way, however I don't know how to get tuple of tuples
-        ac = [pi[i].act(observation=ob[i], stochastic=stochastic)[0] for i in range(len1)]
-        vpred = [pi[i].act(observation=ob[i], stochastic=stochastic)[1]['vpred'] for i in range(len1)]
+        ac = [pi[i].act(ob=ob[i], stochastic=stochastic)[0] for i in range(len1)]
+        vpred = [pi[i].act(ob=ob[i], stochastic=stochastic)[1] for i in range(len1)]
         # ac, vpred = pi.act(stochastic, ob)
         # Slight weirdness here because we need value function at time T
         # before returning segment [0, T-1] so we get the correct

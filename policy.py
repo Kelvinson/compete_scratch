@@ -116,65 +116,65 @@ class LSTMPolicy(Policy):
     def reset(self):
         self.state = self.zero_state
 
-class MlpPolicyValue(Policy):
-    def __init__(self, scope, *, ob_space, ac_space, hiddens, convs=[], reuse=False, normalize=False):
-        self.recurrent = False
-        self.normalized = normalize
-        self.zero_state = np.zeros(1)
-        with tf.variable_scope(scope, reuse=reuse):
+
+class MlpPolicy(object):
+    recurrent = False
+
+    def __init__(self, name, *args, **kwargs):
+        with tf.variable_scope(name):
+            self._init(*args, **kwargs)
             self.scope = tf.get_variable_scope().name
 
-            assert isinstance(ob_space, gym.spaces.Box)
+    def _init(self, ob_space, ac_space, placeholder_name,hid_size, num_hid_layers, gaussian_fixed_var=True):
+        assert isinstance(ob_space, gym.spaces.Box)
 
-            self.observation_ph = tf.placeholder(tf.float32, [None] + list(ob_space.shape), name="observation")
-            self.stochastic_ph = tf.placeholder(tf.bool, (), name="stochastic")
-            self.taken_action_ph = tf.placeholder(dtype=tf.float32, shape=[None, ac_space.shape[0]], name="taken_action")
+        self.pdtype = pdtype = make_pdtype(ac_space)
+        sequence_length = None
 
-            if self.normalized:
-                if self.normalized != 'ob':
-                    self.ret_rms = RunningMeanStd(scope="retfilter")
-                self.ob_rms = RunningMeanStd(shape=ob_space.shape, scope="obsfilter")
+        ob = U.get_placeholder(name=placeholder_name, dtype=tf.float32, shape=[sequence_length] + list(ob_space.shape))
 
-            obz = self.observation_ph
-            if self.normalized:
-                obz = tf.clip_by_value((self.observation_ph - self.ob_rms.mean) / self.ob_rms.std, -5.0, 5.0)
+        with tf.variable_scope("obfilter"):
+            self.ob_rms = RunningMeanStd(shape=ob_space.shape)
 
-            last_out = obz
-            for i, hid_size in enumerate(hiddens):
-                last_out = tf.nn.tanh(dense(last_out, hid_size, "vffc%i" % (i + 1)))
-            self.vpredz = dense(last_out, 1, "vffinal")[:, 0]
+        obz = tf.clip_by_value((ob - self.ob_rms.mean) / self.ob_rms.std, -5.0, 5.0)
+        last_out = obz
+        for i in range(num_hid_layers):
+            last_out = tf.nn.tanh(U.dense(last_out, hid_size, "vffc%i" % (i + 1), weight_init=U.normc_initializer(1.0)))
+        self.vpred = U.dense(last_out, 1, "vffinal", weight_init=U.normc_initializer(1.0))[:, 0]
 
-            self.vpred = self.vpredz
-            if self.normalized and self.normalized != 'ob':
-                self.vpred = self.vpredz * self.ret_rms.std + self.ret_rms.mean  # raw = not standardized
+        last_out = obz
+        for i in range(num_hid_layers):
+            last_out = tf.nn.tanh(
+                U.dense(last_out, hid_size, "polfc%i" % (i + 1), weight_init=U.normc_initializer(1.0)))
+        if gaussian_fixed_var and isinstance(ac_space, gym.spaces.Box):
+            mean = U.dense(last_out, pdtype.param_shape()[0] // 2, "polfinal", U.normc_initializer(0.01))
+            logstd = tf.get_variable(name="logstd", shape=[1, pdtype.param_shape()[0] // 2],
+                                     initializer=tf.zeros_initializer())
+            pdparam = U.concatenate([mean, mean * 0.0 + logstd], axis=1)
+        else:
+            pdparam = U.dense(last_out, pdtype.param_shape()[0], "polfinal", U.normc_initializer(0.01))
 
-            last_out = obz
-            for i, hid_size in enumerate(hiddens):
-                last_out = tf.nn.tanh(dense(last_out, hid_size, "polfc%i" % (i + 1)))
-            mean = dense(last_out, ac_space.shape[0], "polfinal")
-            logstd = tf.get_variable(name="logstd", shape=[1, ac_space.shape[0]], initializer=tf.zeros_initializer())
+        self.pd = pdtype.pdfromflat(pdparam)
 
-            self.pd = DiagonalGaussian(mean, logstd)
-            self.sampled_action = switch(self.stochastic_ph, self.pd.sample(), self.pd.mode())
+        self.state_in = []
+        self.state_out = []
 
-    def make_feed_dict(self, observation, taken_action):
-        return {
-            self.observation_ph: observation,
-            self.taken_action_ph: taken_action
-        }
+        stochastic = tf.placeholder(dtype=tf.bool, shape=())
+        ac = U.switch(stochastic, self.pd.sample(), self.pd.mode())
+        self._act = U.function([stochastic, ob], [ac, self.vpred])
 
-    def act(self, observation, stochastic=True):
-        outputs = [self.sampled_action, self.vpred]
-        a, v = tf.get_default_session().run(outputs, {
-            self.observation_ph: observation[None],
-            self.stochastic_ph: stochastic})
-        return a[0], {'vpred': v[0]}
+    def act(self, stochastic, ob):
+        ac1, vpred1 = self._act(stochastic, ob[None])
+        return ac1[0], vpred1[0]
 
     def get_variables(self):
         return tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, self.scope)
 
     def get_trainable_variables(self):
         return tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, self.scope)
+
+    def get_initial_state(self):
+        return []
 
 
 class RunningMeanStd(object):
