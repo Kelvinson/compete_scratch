@@ -67,7 +67,7 @@ def compete_learn(env, policy_func, *,
     meanent = [U.mean(ent[i]) for i in range(len1)]
 
     pol_entpen = [(-entcoeff) * meanent[i] for i in range(len1)]
-    ratio = [tf.exp(pi[i].pd.logp(ac[i] - oldpi[i].pd.logp(ac[i]))) for i in range(len1)] #pnew / pold
+    ratio = [tf.exp(pi[i].pd.logp(ac[i]) - oldpi[i].pd.logp(ac[i])) for i in range(len1)] #pnew / pold
     surr1 = [ratio[i] * atarg[i] for i in range(len1)]
     # U.clip = tf.clip_by_value(t, clip_value_min, clip_value_max,name=None):
     # # among which t is A 'Tensor' so

@@ -116,65 +116,7 @@ class LSTMPolicy(Policy):
     def reset(self):
         self.state = self.zero_state
 
-class MlpPolicyValue(Policy):
-    def __init__(self, scope, *, ob_space, ac_space, hiddens, convs=[], reuse=False, normalize=False):
-        self.recurrent = False
-        self.normalized = normalize
-        self.zero_state = np.zeros(1)
-        with tf.variable_scope(scope, reuse=reuse):
-            self.scope = tf.get_variable_scope().name
 
-            assert isinstance(ob_space, gym.spaces.Box)
-
-            self.observation_ph = tf.placeholder(tf.float32, [None] + list(ob_space.shape), name="observation")
-            self.stochastic_ph = tf.placeholder(tf.bool, (), name="stochastic")
-            self.taken_action_ph = tf.placeholder(dtype=tf.float32, shape=[None, ac_space.shape[0]], name="taken_action")
-
-            if self.normalized:
-                if self.normalized != 'ob':
-                    self.ret_rms = RunningMeanStd(scope="retfilter")
-                self.ob_rms = RunningMeanStd(shape=ob_space.shape, scope="obsfilter")
-
-            obz = self.observation_ph
-            if self.normalized:
-                obz = tf.clip_by_value((self.observation_ph - self.ob_rms.mean) / self.ob_rms.std, -5.0, 5.0)
-
-            last_out = obz
-            for i, hid_size in enumerate(hiddens):
-                last_out = tf.nn.tanh(dense(last_out, hid_size, "vffc%i" % (i + 1)))
-            self.vpredz = dense(last_out, 1, "vffinal")[:, 0]
-
-            self.vpred = self.vpredz
-            if self.normalized and self.normalized != 'ob':
-                self.vpred = self.vpredz * self.ret_rms.std + self.ret_rms.mean  # raw = not standardized
-
-            last_out = obz
-            for i, hid_size in enumerate(hiddens):
-                last_out = tf.nn.tanh(dense(last_out, hid_size, "polfc%i" % (i + 1)))
-            mean = dense(last_out, ac_space.shape[0], "polfinal")
-            logstd = tf.get_variable(name="logstd", shape=[1, ac_space.shape[0]], initializer=tf.zeros_initializer())
-
-            self.pd = DiagonalGaussian(mean, logstd)
-            self.sampled_action = switch(self.stochastic_ph, self.pd.sample(), self.pd.mode())
-
-    def make_feed_dict(self, observation, taken_action):
-        return {
-            self.observation_ph: observation,
-            self.taken_action_ph: taken_action
-        }
-
-    def act(self, observation, stochastic=True):
-        outputs = [self.sampled_action, self.vpred]
-        a, v = tf.get_default_session().run(outputs, {
-            self.observation_ph: observation[None],
-            self.stochastic_ph: stochastic})
-        return a[0], {'vpred': v[0]}
-
-    def get_variables(self):
-        return tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, self.scope)
-
-    def get_trainable_variables(self):
-        return tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, self.scope)
 
 
 class RunningMeanStd(object):
