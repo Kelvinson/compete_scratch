@@ -15,17 +15,21 @@ from learn import compete_learn
 
 
 def train(env, seed):
-    if env == "sumo-ants":
-        env = gym.make("sumo-ants-v0")
+
+    # seed = args.seed
+    num_timesteps = 0
+    from baselines.ppo1 import mlp_policy, pposgd_simple
+    U.make_session(num_cpu=1).__enter__()
+    # bench.Monitor(env, "log")
+    # env.seed(seed)
+    # env = bench.Monitor(env, logger.get_dir())
+    set_global_seeds(seed)
+    if env == "run-to-goal-humans-v0":
+        #whe I use MLP policy, it can be applied to the environment "run-to-goal" and "you-shall-not-pass environments"
+        env = gym.make("run-to-goal-humans-v0")
     else:
         print("right now I only support sumo-ants-v0")
         sys.exit()
-    # seed = args.seed
-    num_timesteps = 10
-    from baselines.ppo1 import mlp_policy, pposgd_simple
-    U.make_session(num_cpu=1).__enter__()
-    # env = bench.Monitor(env, logger.get_dir())
-    set_global_seeds(seed)
 
     # policy = []
     # for i in range(2):
@@ -43,6 +47,9 @@ def train(env, seed):
                                      placeholder_name=placeholder_name)
 
 
+    # env = bench.Monitor(env, logger.get_dir())
+    # print("the loogger data is stored at:",logger.get_dir())
+    env.seed(seed)
     gym.logger.setLevel(logging.WARN)
     compete_learn(env, policy_fn,
             max_timesteps=num_timesteps,
@@ -50,7 +57,7 @@ def train(env, seed):
             timesteps_per_batch=2048,
             clip_param=0.2, entcoeff=0.0,
             optim_epochs=10, optim_stepsize=3e-4, optim_batchsize=64,
-            gamma=0.99, lam=0.95, schedule='constant', #T
+            gamma=0.995, lam=0.95, schedule='constant', #T
         )
 
     env.close()
@@ -61,4 +68,4 @@ if __name__ == "__main__":
     # p.add_argument("--seed", default=123, required=True, type=str)
     #
     # args = p.parse_args()
-    train(env="sumo-ants", seed = 123)
+    train(env="run-to-goal-humans-v0", seed = 123)

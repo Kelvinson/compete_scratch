@@ -20,7 +20,9 @@ input: pi: a tuple of two polices,
 """
 def traj_segment_generator(pi, env, horizon, stochastic):
     assert(len(pi) == 2,"this policy network in the environment must be a tuple of multiple agetns")
-    len1 = len(env.agents)
+
+    #len1 = len(env.agents)
+    len1= 2
     t = 0
     # ac is a tuple of multiple agents' actions
     # ac should a tuple of two agents' actions
@@ -94,7 +96,7 @@ def traj_segment_generator(pi, env, horizon, stochastic):
             cur_ep_ret[j] += rewrd
             cur_ep_len[j] += 1
 
-        print("at timestamp {} the rewards are {} {}.".format(t, rews[0][i], rews[1][i]))
+        print("t{} rewards {} {}.".format(t, rews[0][i], rews[1][i]))
         if new[0] or new[1]:
             for j in range(len1):
                 ep_rets[j].append(cur_ep_ret[j])

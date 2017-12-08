@@ -19,9 +19,9 @@ def compete_learn(env, policy_func, *,
         clip_param, entcoeff, # clipping parameter epsilon, entropy coeff
         optim_epochs, optim_stepsize, optim_batchsize,# optimization hypers
         gamma, lam, # advantage estimation
-        max_timesteps=0, max_episodes=0, max_iters=0, max_seconds=0,  # time constraint
+        max_timesteps=0, max_episodes=0, max_iters=200, max_seconds=0,  # time constraint
         callback=None, # you can do anything in the callback, since it takes locals(), globals()
-        adam_epsilon=1e-5,
+        adam_epsilon=1e-3,
         schedule='constant' # annealing for stepsize parameters (epsilon and adam)
         ):
     # Setup losses and stuff
@@ -29,7 +29,7 @@ def compete_learn(env, policy_func, *,
     # at this stage, the ob_space and reward_space is
     #TODO: all of this tuples are not right ? becuase items in tuple is not mutable
     #TODO: another way to store the two agents' states is to use with with tf.variable_scope(scope, reuse=reuse):
-    len1 = len(env.agents)
+    len1 = 2
     ob_space = env.observation_space.spaces
     ac_space = env.action_space.spaces
     pi = [policy_func("pi" + str(i), ob_space[i], ac_space[i],placeholder_name="observation"+str(i)) for i in range(len1)]
@@ -98,8 +98,8 @@ def compete_learn(env, policy_func, *,
     # compute_losses is a function, so it should not be copied to copies, nevertheless the parameters should be
     # passed into it as the two agents
     compute_losses = [U.function([ob[i], ac[i], atarg[i], ret[i], lrmult], losses[i]) for i in range(len1)]
-    sess = U.get_session()
-    writer = tf.summary.FileWriter(logdir='log-mlp',graph=sess.graph)
+    # sess = U.get_session()
+    # writer = tf.summary.FileWriter(logdir='log-mlp',graph=sess.graph)
     U.initialize()
     # [adam[i].sync() for i in range(2)]
     adam[0].sync()
@@ -115,6 +115,8 @@ def compete_learn(env, policy_func, *,
 
     lenbuffer = [deque(maxlen=100) for i in range(len1)]  # rolling buffer for episode lengths
     rewbuffer = [deque(maxlen=100) for i in range(len1)] # rolling buffer for episode rewards
+
+    parameters_savers = []
     assert sum([max_iters>0, max_timesteps>0, max_episodes>0, max_seconds>0])==1, "Only one time constraint permitted"
 
     while True:
@@ -135,6 +137,10 @@ def compete_learn(env, policy_func, *,
         else:
             raise NotImplementedError
 
+
+
+        # saver.restore()
+
         logger.log("********** Iteration %i ************"%iters_so_far)
 
         seg = seg_gen.__next__()
@@ -142,6 +148,7 @@ def compete_learn(env, policy_func, *,
         add_vtarg_and_adv(seg, gamma, lam)
 
         losses = [[] for i in range(len1)]
+        meanlosses = [[] for i in range(len1)]
         for i in range(len1):
             ob[i], ac[i], atarg[i], tdlamret[i]= seg["ob"][i], seg["ac"][i], seg["adv"][i], seg["tdlamret"][i]
             # ob_extend = np.expand_dims(ob[i],axis=0)
@@ -155,11 +162,14 @@ def compete_learn(env, policy_func, *,
 
             #TODO: I have to make suer how assign_old_ea_new works and whether to assign it for each agent
             #Yes I can assure it will work now
-            U.function([], [], updates=[tf.assign(oldv, newv)
-            for (oldv, newv) in zipsame(oldpi[i].get_variables(), pi[i].get_variables())])()
+
+            # save network parameters using tf.train.Saver
+            #     saver_name = "saver" + str(iters_so_far)
+
+            U.function([], [], updates=[tf.assign(oldv, newv) for (oldv, newv) in zipsame(oldpi[i].get_variables(), pi[i].get_variables())])()
              # set old parameter values to new parameter values
         # Here we do a bunch of optimization epochs over the data
-            logger.log("Optimizing...")
+            logger.log("Optimizing the agent{}...".format(i))
             logger.log(fmt_row(13, loss_names))
             for _ in range(optim_epochs):
                 losses[i] = [] # list of tuples, each of which gives the loss for a minibatch
@@ -170,24 +180,40 @@ def compete_learn(env, policy_func, *,
                     losses[i].append(newlosses)
                     logger.log(fmt_row(13, np.mean(losses[i], axis=0)))
 
+            logger.log("Evaluating losses of agent{}...".format(i))
             losses[i] = []
             for batch in d.iterate_once(optim_batchsize):
                 newlosses = compute_losses[i](batch["ob"], batch["ac"], batch["atarg"], batch["vtarg"], cur_lrmult)
                 losses[i].append(newlosses)
-            meanlosses, _, _ = mpi_moments(losses[i], axis=0)
-            logger.log(fmt_row(13, meanlosses))
-            for (lossval, name) in zipsame(meanlosses, loss_names):
+            meanlosses[i], _, _ = mpi_moments(losses[i], axis=0)
+            logger.log(fmt_row(13, meanlosses[i]))
+            for (lossval, name) in zipsame(meanlosses[i], loss_names):
                 logger.record_tabular("loss_" + name, lossval)
-            logger.record_tabular("ev_tdlam_before", explained_variance(vpredbefore, tdlamret[i]))
+            logger.record_tabular("ev_tdlam_before{}".format(i), explained_variance(vpredbefore, tdlamret[i]))
 
             lrlocal = (seg["ep_lens"][i], seg["ep_rets"][i]) # local values
             listoflrpairs = MPI.COMM_WORLD.allgather(lrlocal) # list of tuples
             lens, rews = map(flatten_lists, zip(*listoflrpairs))
             lenbuffer[i].extend(lens)
             rewbuffer[i].extend(rews)
+            logger.record_tabular("EpLenMean {}".format(i), np.mean(lenbuffer[i]))
+            logger.record_tabular("EpRewMean {}".format(i), np.mean(rewbuffer[i]))
+        logger.record_tabular("EpThisIter", len(lens))
         episodes_so_far += len(lens)
         timesteps_so_far += sum(lens)
         iters_so_far += 1
+
+        temp_pi = policy_func("temp_pi"+str(iters_so_far) , ob_space[0], ac_space[0], placeholder_name="temp_pi_observation" + str(iters_so_far))
+        U.function([], [], updates=[tf.assign(oldv, newv) for (oldv, newv) in
+                                    zipsame(temp_pi.get_variables(), pi[0].get_variables())])()
+        parameters_savers.append(temp_pi)
+        if iters_so_far % 3 == 0:
+            sample_iteration = int(np.random.uniform(iters_so_far / 2, iters_so_far))
+            print("now assign the {}th parameter of agent0 to agent1".format(sample_iteration))
+            pi_restore = parameters_savers[sample_iteration]
+            U.function([], [], updates=[tf.assign(oldv, newv) for (oldv, newv) in
+                                    zipsame(pi[1].get_variables(), pi_restore.get_variables())])()
+
         logger.record_tabular("EpisodesSoFar", episodes_so_far)
         logger.record_tabular("TimestepsSoFar", timesteps_so_far)
         logger.record_tabular("TimeElapsed", time.time() - tstart)
