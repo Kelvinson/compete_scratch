@@ -18,6 +18,7 @@ class Policy(object):
         # should return act, info
         raise NotImplementedError()
 
+
 class LSTMPolicy(Policy):
     def __init__(self, scope, *, ob_space, ac_space, hiddens, placeholder_name, reuse=False, normalize=False):
         self.recurrent = True
@@ -117,7 +118,7 @@ class LSTMPolicy(Policy):
         self.state = self.zero_state
 
 
-class MlpPolicy(object):
+class MlpPolicy(Policy):
     recurrent = False
 
     def __init__(self, name, *args, **kwargs):

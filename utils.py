@@ -88,8 +88,14 @@ def traj_segment_generator(pi, env, horizon, stochastic):
         for j in range(len1):
             #TODO: I have to revise the reward to be like it in the papar just like in the My_Simple_PPO_LSTM_New.py file
             # survive = info[j]['reward_survive']
-            exploration_reward = info[j]['reward_move'] * (1 - t * 0.002)
-            competition_reward = info[j]['reward_remaining'] * t * 0.002
+            if  i < 500:
+                exploration_reward = info[j]['reward_move'] * (1 - i * 0.002)
+                competition_reward = info[j]['reward_remaining'] * i * 0.002
+            else :
+                exploration_reward = 0
+                # in the multiagent environment the info['reward_remaining'] is the goal reward
+                # defined in the OpenAI's paper rightly.
+                competition_reward = info[j]['reward_remaining']
             rewrd = exploration_reward + competition_reward
             rews[j][i] = rewrd
 

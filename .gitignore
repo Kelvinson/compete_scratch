@@ -1,6 +1,10 @@
-.idea
+parame*
+saveparam*
+.ipy*
+.idea*
 __pycache__
 *.txt
 *.bk
 original*
 *.png
+mlp*

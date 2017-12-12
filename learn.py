@@ -3,6 +3,7 @@ from policy import LSTMPolicy
 from baselines.common import set_global_seeds, Dataset, explained_variance, fmt_row, zipsame
 from baselines import bench
 from baselines import logger
+import tensorflow.contrib.slim as slim
 from utils import flatten_lists
 import baselines.common.tf_util as U
 import tensorflow as tf, numpy as np
@@ -19,7 +20,7 @@ def compete_learn(env, policy_func, *,
         clip_param, entcoeff, # clipping parameter epsilon, entropy coeff
         optim_epochs, optim_stepsize, optim_batchsize,# optimization hypers
         gamma, lam, # advantage estimation
-        max_timesteps=0, max_episodes=0, max_iters=200, max_seconds=0,  # time constraint
+        max_timesteps=0, max_episodes=0, max_iters=20, max_seconds=0,  # time constraint
         callback=None, # you can do anything in the callback, since it takes locals(), globals()
         adam_epsilon=1e-3,
         schedule='constant' # annealing for stepsize parameters (epsilon and adam)
@@ -100,7 +101,17 @@ def compete_learn(env, policy_func, *,
     compute_losses = [U.function([ob[i], ac[i], atarg[i], ret[i], lrmult], losses[i]) for i in range(len1)]
     # sess = U.get_session()
     # writer = tf.summary.FileWriter(logdir='log-mlp',graph=sess.graph)
+    # now when the training iteration ends, save the trained model and test the win rate of the two.
+    pi0_variables = slim.get_variables(scope="pi0")
+    pi1_variables = slim.get_variables(scope="pi1")
+    parameters_to_save_list0 = [v for v in pi0_variables]
+    parameters_to_save_list1 = [v for v in pi1_variables]
+    parameters_to_save_list = parameters_to_save_list0 + parameters_to_save_list1
+    saver = tf.train.Saver(parameters_to_save_list)
+    restore = tf.train.Saver(parameters_to_save_list)
     U.initialize()
+    restore.restore(U.get_session(), "saveparameter/100/100.pkl")
+    U.get_session().run
     # [adam[i].sync() for i in range(2)]
     adam[0].sync()
     adam[1].sync()
@@ -221,3 +232,13 @@ def compete_learn(env, policy_func, *,
             logger.dump_tabular()
 
 
+    # # now when the training iteration ends, save the trained model and test the win rate of the two.
+    # pi0_variables = slim.get_variables(scope = "pi0")
+    # pi1_variables = slim.get_variables(scope = "pi1")
+    # parameters_to_save_list0 = [v for v in pi0_variables]
+    # parameters_to_save_list1 = [v for v in pi1_variables]
+    # parameters_to_save_list = parameters_to_save_list0 + parameters_to_save_list1
+    # saver = tf.train.Saver(parameters_to_save_list)
+    # parameters_path = 'parameter/'
+    # tf.train.Saver()
+    save_path = saver.save(U.get_session(), "saveparameter/60/60.pkl")
