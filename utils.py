@@ -51,7 +51,9 @@ def traj_segment_generator(pi, env, horizon, stochastic):
     acs = [np.array([ac[i] for _ in range(horizon)]) for i in range(len1)] # array of T timestamps of action tuples
     # now prevacs is a list copy
     prevacs = acs.copy()
-    episode_timestamp = 0
+    episode_length = 0
+    #becasue I have alreary run 60 episodes
+    episode_now = 0
 
     while True:
         # because prevac is a list copy of ac so it is safe here to use "=" assignment
@@ -83,6 +85,7 @@ def traj_segment_generator(pi, env, horizon, stochastic):
             # several of these batches, then be sure to do a deepcopy
             ep_rets = [[] for i in range(len1)]  # returns of completed episodes in this segment
             ep_lens = [[] for i in range(len1)]
+            episode_length += 1
         i = t % horizon
         #TODO: now i is the timestamp index and j becomes the index of the agents, previously i is the index of the two agents
         for j in range(len1):
@@ -100,14 +103,18 @@ def traj_segment_generator(pi, env, horizon, stochastic):
         for j in range(len1):
             #TODO: I have to revise the reward to be like it in the papar just like in the My_Simple_PPO_LSTM_New.py file
             # survive = info[j]['reward_survive']
-            if  episode_timestamp < 500:
-                exploration_reward = info[j]['reward_move'] * (1 - episode_timestamp * 0.001)
-                competition_reward = info[j]['reward_remaining'] * episode_timestamp * 0.001
-            else :
-                exploration_reward = 0
-                # in the multiagent environment the info['reward_remaining'] is the goal reward
-                # defined in the OpenAI's paper rightly.
-                competition_reward = info[j]['reward_remaining']
+            # if  episode_length < 1000:
+            #     exploration_reward = info[j]['reward_move'] * (1 - episode_length * 0.001)
+            #     competition_reward = info[j]['reward_remaining'] * episode_length * 0.001
+            # else :
+            #     exploration_reward = 0
+            #     # in the multiagent environment the info['reward_remaining'] is the goal reward
+            #     # defined in the OpenAI's paper rightly.
+            #     competition_reward = info[j]['reward_remaining']
+            # rewrd = exploration_reward + competition_reward
+            exploration_reward = info[j]['reward_move']* (1 - (episode_length + episode_now) * 0.002)
+            competition_reward = info[j]['reward_remaining'] * (episode_length + episode_now) * 0.002
+            #
             rewrd = exploration_reward + competition_reward
             rews[j][i] = rewrd
 
@@ -122,9 +129,7 @@ def traj_segment_generator(pi, env, horizon, stochastic):
                 cur_ep_ret[j] = 0
                 cur_ep_len[j] = 0
             ob = env.reset()
-            episode_timestamp = 0
         t += 1
-        episode_timestamp += 1
 
 # TODO: had to fix this function to function right.
 def add_vtarg_and_adv(seg, gamma, lam):
