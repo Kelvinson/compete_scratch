@@ -51,6 +51,7 @@ def traj_segment_generator(pi, env, horizon, stochastic):
     acs = [np.array([ac[i] for _ in range(horizon)]) for i in range(len1)] # array of T timestamps of action tuples
     # now prevacs is a list copy
     prevacs = acs.copy()
+    episode_timestamp = 0
 
     while True:
         # because prevac is a list copy of ac so it is safe here to use "=" assignment
@@ -63,6 +64,17 @@ def traj_segment_generator(pi, env, horizon, stochastic):
         # Slight weirdness here because we need value function at time T
         # before returning segment [0, T-1] so we get the correct
         # terminal value
+
+        # if t > 0 and (new[0] or new[1]):
+        #     yield {"ob" : obs[:t], "rew" : rews[:t], "vpred" : vpreds[:t], "new" : news[:t],
+        #             "ac" : acs[:t], "prevac" : prevacs[:t], "nextvpred": [vpred[k] * (1 - new[k]) for k in range(len1)],
+
+        #
+        # if t > 0 and (new[0] or new[1]):
+        #     yield {"ob": obs, "rew": rews, "vpred": vpreds, "new": news,
+        #                        "ac" : acs, "prevac" : prevacs, "nextvpred": [vpred[k] * (1 - new[k]) for k in range(len1)],
+        #                        "ep_rets" : ep_rets, "ep_lens" : ep_lens}
+
         if t > 0 and t % horizon == 0:
             yield {"ob" : obs, "rew" : rews, "vpred" : vpreds, "new" : news,
                     "ac" : acs, "prevac" : prevacs, "nextvpred": [vpred[k] * (1 - new[k]) for k in range(len1)],
@@ -88,9 +100,9 @@ def traj_segment_generator(pi, env, horizon, stochastic):
         for j in range(len1):
             #TODO: I have to revise the reward to be like it in the papar just like in the My_Simple_PPO_LSTM_New.py file
             # survive = info[j]['reward_survive']
-            if  i < 500:
-                exploration_reward = info[j]['reward_move'] * (1 - i * 0.002)
-                competition_reward = info[j]['reward_remaining'] * i * 0.002
+            if  episode_timestamp < 500:
+                exploration_reward = info[j]['reward_move'] * (1 - episode_timestamp * 0.001)
+                competition_reward = info[j]['reward_remaining'] * episode_timestamp * 0.001
             else :
                 exploration_reward = 0
                 # in the multiagent environment the info['reward_remaining'] is the goal reward
@@ -110,7 +122,9 @@ def traj_segment_generator(pi, env, horizon, stochastic):
                 cur_ep_ret[j] = 0
                 cur_ep_len[j] = 0
             ob = env.reset()
+            episode_timestamp = 0
         t += 1
+        episode_timestamp += 1
 
 # TODO: had to fix this function to function right.
 def add_vtarg_and_adv(seg, gamma, lam):

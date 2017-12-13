@@ -23,7 +23,7 @@ def compete_learn(env, policy_func, *,
         max_timesteps=0, max_episodes=0, max_iters=20, max_seconds=0,  # time constraint
         callback=None, # you can do anything in the callback, since it takes locals(), globals()
         adam_epsilon=1e-3,
-        schedule='constant' # annealing for stepsize parameters (epsilon and adam)
+        schedule='linear' # annealing for stepsize parameters (epsilon and adam)
         ):
     # Setup losses and stuff
     # ----------------------------------------
@@ -108,9 +108,9 @@ def compete_learn(env, policy_func, *,
     parameters_to_save_list1 = [v for v in pi1_variables]
     parameters_to_save_list = parameters_to_save_list0 + parameters_to_save_list1
     saver = tf.train.Saver(parameters_to_save_list)
-    restore = tf.train.Saver(parameters_to_save_list)
+    # restore = tf.train.Saver(parameters_to_save_list)
     U.initialize()
-    restore.restore(U.get_session(), "saveparameter/100/100.pkl")
+    # restore.restore(U.get_session(), "saveparameter/20/20.pkl")
     U.get_session().run
     # [adam[i].sync() for i in range(2)]
     adam[0].sync()
@@ -218,7 +218,7 @@ def compete_learn(env, policy_func, *,
         U.function([], [], updates=[tf.assign(oldv, newv) for (oldv, newv) in
                                     zipsame(temp_pi.get_variables(), pi[0].get_variables())])()
         parameters_savers.append(temp_pi)
-        if iters_so_far % 3 == 0:
+        if iters_so_far % 5 == 0:
             sample_iteration = int(np.random.uniform(iters_so_far / 2, iters_so_far))
             print("now assign the {}th parameter of agent0 to agent1".format(sample_iteration))
             pi_restore = parameters_savers[sample_iteration]
@@ -241,4 +241,4 @@ def compete_learn(env, policy_func, *,
     # saver = tf.train.Saver(parameters_to_save_list)
     # parameters_path = 'parameter/'
     # tf.train.Saver()
-    save_path = saver.save(U.get_session(), "saveparameter/60/60.pkl")
+    save_path = saver.save(U.get_session(), "saveparameter/20/20.pkl")

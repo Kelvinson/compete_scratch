@@ -85,12 +85,12 @@ def run(config):
     parameters_to_save_list0 = [v for v in pi0_variables]
     parameters_to_save_list1 = [v for v in pi1_variables]
     parameters_to_save_list = parameters_to_save_list0 + parameters_to_save_list1
-    # saver = tf.train.Saver(parameters_to_save_list)
-    saver = tf.train.Saver()
+    saver = tf.train.Saver(parameters_to_save_list)
+    # saver = tf.train.Saver()
 
     # initialize uninitialized variables
     sess.run(tf.variables_initializer(tf.global_variables()))
-    saver.restore(sess, "saveparameter/60/60.pkl")
+    saver.restore(sess, "saveparameter/20/20.pkl")
     # params = [load_from_file(param_pkl_path=path) for path in param_paths]
     # for i in range(len(policy)):
     #     setFromFlat(policy[i].get_variables(), params[i])
@@ -111,6 +111,7 @@ def run(config):
         action = tuple([policy[i].act(stochastic=True, ob=observation[i])[0]
                         for i in range(len(policy))])
         observation, reward, done, infos = env.step(action)
+        print("Rewards for the two agents are {} and {}.".format(reward[0], reward[1]))
         nstep += 1
         for i in range(len(policy)):
             total_reward[i] += reward[i]
@@ -121,9 +122,9 @@ def run(config):
                 if 'winner' in infos[i]:
                     draw = False
                     total_scores[i] += 1
-                    print("Winner: Agent {}, Scores: {}, Total Episodes: {}".format(i, total_scores, num_episodes))
+                    print("Winner: Agent {}, Scores: {}, Total Episodes: {}, total rewards: {}".format(i, total_scores, num_episodes,total_reward))
             if draw:
-                print("Game Tied: Agent {}, Scores: {}, Total Episodes: {}".format(i, total_scores, num_episodes))
+                print("Game Tied: Agent {}, Scores: {}, Total Episodes: {}, total rewards: {}".format(i, total_scores, num_episodes, total_reward))
             observation = env.reset()
             nstep = 0
             total_reward = [0.0  for _ in range(len(policy))]

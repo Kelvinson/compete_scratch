@@ -24,11 +24,11 @@ def train(env, seed):
     # env.seed(seed)
     # env = bench.Monitor(env, logger.get_dir())
     set_global_seeds(seed)
-    if env == "run-to-goal-humans-v0":
+    if env == "kick-and-defend-v0":
         #whe I use MLP policy, it can be applied to the environment "run-to-goal" and "you-shall-not-pass environments"
-        env = gym.make("run-to-goal-humans-v0")
+        env = gym.make("kick-and-defend-v0")
     else:
-        print("right now I only support sumo-ants-v0")
+        print("right now I only support kick-and-defend-v0")
         sys.exit()
 
     # policy = []
@@ -54,9 +54,9 @@ def train(env, seed):
     compete_learn(env, policy_fn,
             max_timesteps=num_timesteps,
             #TODO:remember to change it to 2048
-            timesteps_per_batch=2048,
+            timesteps_per_batch=5120,
             clip_param=0.2, entcoeff=0.0,
-            optim_epochs=10, optim_stepsize=3e-4, optim_batchsize=64,
+            optim_epochs=6, optim_stepsize=3e-4, optim_batchsize=5120,
             gamma=0.995, lam=0.95, schedule='constant', #T
         )
 
@@ -68,4 +68,4 @@ if __name__ == "__main__":
     # p.add_argument("--seed", default=123, required=True, type=str)
     #
     # args = p.parse_args()
-    train(env="run-to-goal-humans-v0", seed = 123)
+    train(env="kick-and-defend-v0", seed = 123)
