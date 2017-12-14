@@ -51,7 +51,7 @@ def run(config):
         print("choose from: run-to-goal-humans, run-to-goal-ants, you-shall-not-pass, sumo-humans, sumo-ants, kick-and-defend")
         sys.exit()
 
-    param_paths = "/tmp/model.ckpt"
+    # param_paths = "/tmp/model.ckpt"
 
     tf_config = tf.ConfigProto(
         inter_op_parallelism_threads=1,
@@ -90,7 +90,7 @@ def run(config):
 
     # initialize uninitialized variables
     sess.run(tf.variables_initializer(tf.global_variables()))
-    saver.restore(sess, "saveparameter/15/15.pkl")
+    saver.restore(sess, "saveparameter/500/500.pkl")
     # params = [load_from_file(param_pkl_path=path) for path in param_paths]
     # for i in range(len(policy)):
     #     setFromFlat(policy[i].get_variables(), params[i])
@@ -135,8 +135,7 @@ def run(config):
 
 if __name__ == "__main__":
     p = argparse.ArgumentParser(description="Environments for Multi-agent competition")
-    p.add_argument("--env", default="run-to-goal-humans", type=str, help="competitive environment: run-to-goal-humans, run-to-goal-ants, you-shall-not-pass, sumo-humans, sumo-ants, kick-and-defend")
-    p.add_argument("--param-paths", nargs='+', required=True, type=str)
+    p.add_argument("--env", default="you-shall-not-pass", type=str, help="competitive environment: run-to-goal-humans, run-to-goal-ants, you-shall-not-pass, sumo-humans, sumo-ants, kick-and-defend")
     p.add_argument("--max-episodes", default=10, help="max number of matches", type=int)
 
     config = p.parse_args()

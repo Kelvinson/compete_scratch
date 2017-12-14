@@ -1,13 +1,10 @@
 
-from policy import LSTMPolicy
-from baselines.common import set_global_seeds, Dataset, explained_variance, fmt_row, zipsame
-from baselines import bench
-from baselines import logger
+from baselines.common import Dataset, explained_variance, fmt_row, zipsame
 import tensorflow.contrib.slim as slim
 from utils import flatten_lists
 import baselines.common.tf_util as U
 import tensorflow as tf, numpy as np
-from baselines import logger, bench
+from baselines import logger
 import time
 from collections import deque
 from baselines.common.mpi_adam import MpiAdam
@@ -110,7 +107,9 @@ def compete_learn(env, policy_func, *,
     saver = tf.train.Saver(parameters_to_save_list)
     restore = tf.train.Saver(parameters_to_save_list)
     U.initialize()
-    restore.restore(U.get_session(), "saveparameter/15/15.pkl")
+    restore.restore(U.get_session(), "saveparameter/300/300.pkl")
+    U.function([], [], updates=[tf.assign(oldv, newv) for (oldv, newv) in
+                zipsame(pi[1].get_variables(), pi[0].get_variables())])()
     U.get_session().run
     # [adam[i].sync() for i in range(2)]
     adam[0].sync()
@@ -218,12 +217,14 @@ def compete_learn(env, policy_func, *,
         U.function([], [], updates=[tf.assign(oldv, newv) for (oldv, newv) in
                                     zipsame(temp_pi.get_variables(), pi[0].get_variables())])()
         parameters_savers.append(temp_pi)
-        if iters_so_far % 3 == 0:
-            sample_iteration = int(np.random.uniform(iters_so_far / 2, iters_so_far))
-            print("now assign the {}th parameter of agent0 to agent1".format(sample_iteration))
-            pi_restore = parameters_savers[sample_iteration]
-            U.function([], [], updates=[tf.assign(oldv, newv) for (oldv, newv) in
-                                    zipsame(pi[1].get_variables(), pi_restore.get_variables())])()
+
+        # now I think when the
+        # if iters_so_far % 3 == 0:
+        #     sample_iteration = int(np.random.uniform(iters_so_far / 2, iters_so_far))
+        #     print("now assign the {}th parameter of agent0 to agent1".format(sample_iteration))
+        #     pi_restore = parameters_savers[sample_iteration]
+        #     U.function([], [], updates=[tf.assign(oldv, newv) for (oldv, newv) in
+        #                             zipsame(pi[1].get_variables(), pi_restore.get_variables())])()
 
         logger.record_tabular("EpisodesSoFar", episodes_so_far)
         logger.record_tabular("TimestepsSoFar", timesteps_so_far)
@@ -241,4 +242,4 @@ def compete_learn(env, policy_func, *,
     # saver = tf.train.Saver(parameters_to_save_list)
     # parameters_path = 'parameter/'
     # tf.train.Saver()
-    save_path = saver.save(U.get_session(), "saveparameter/35/35.pkl")
+    save_path = saver.save(U.get_session(), "saveparameter/500/500.pkl")

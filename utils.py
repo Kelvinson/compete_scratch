@@ -53,7 +53,7 @@ def traj_segment_generator(pi, env, horizon, stochastic):
     prevacs = acs.copy()
     episode_length = 0
     #becasue I have alreary run 60 episodes
-    episode_now = 0
+    episode_now = 300
 
     while True:
         # because prevac is a list copy of ac so it is safe here to use "=" assignment
@@ -112,8 +112,8 @@ def traj_segment_generator(pi, env, horizon, stochastic):
             #     # defined in the OpenAI's paper rightly.
             #     competition_reward = info[j]['reward_remaining']
             # rewrd = exploration_reward + competition_reward
-            exploration_reward = info[j]['reward_move']* (1 - (episode_length + episode_now) * 0.002)
-            competition_reward = info[j]['reward_remaining'] * (episode_length + episode_now) * 0.002
+            exploration_reward = info[j]['reward_move']* (1 - (episode_length + episode_now) * 0.0004)
+            competition_reward = info[j]['reward_remaining'] * (episode_length + episode_now) * 0.0004
             #
             rewrd = exploration_reward + competition_reward
             rews[j][i] = rewrd
