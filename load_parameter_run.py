@@ -90,7 +90,7 @@ def run(config):
 
     # initialize uninitialized variables
     sess.run(tf.variables_initializer(tf.global_variables()))
-    saver.restore(sess, "saveparameter/500/500.pkl")
+    saver.restore(sess, "parameter/500/500.pkl")
     # params = [load_from_file(param_pkl_path=path) for path in param_paths]
     # for i in range(len(policy)):
     #     setFromFlat(policy[i].get_variables(), params[i])
@@ -103,14 +103,16 @@ def run(config):
     # total_scores = np.asarray(total_scores)
     observation = env.reset()
     print("-"*5 + " Episode %d " % (num_episodes+1) + "-"*5)
+    # run for max_episodes using the loaded network parameters
     while num_episodes < max_episodes:
+        #render the graphic, you can just comment to just see the running result.
         env.render()
-        # ac = [pi[i].act(ob=ob[i], stochastic=stochastic)[0] for i in range(len1)]
-        # vpred = [pi[i].act(ob=ob[i], stochastic=stochastic)[1] for i in range(len1)]
-        #
+        # get action pair from the policy network of the two agents.
         action = tuple([policy[i].act(stochastic=True, ob=observation[i])[0]
                         for i in range(len(policy))])
+        #the bservation, reward, done, infos are all tuples with size of two(agent number)
         observation, reward, done, infos = env.step(action)
+        # print out the reward of the two agents
         print("Rewards for the two agents are {} and {}.".format(reward[0], reward[1]))
         nstep += 1
         for i in range(len(policy)):

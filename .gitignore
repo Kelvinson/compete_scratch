@@ -8,3 +8,9 @@ __pycache__
 original*
 *.png
 mlp*
+mpi_gather_example.py
+plot*
+*.ipynb
+*.mp4
+pposgd.py
+README(load_parameter_run.py)

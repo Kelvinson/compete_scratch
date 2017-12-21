@@ -56,7 +56,7 @@ def train(env, seed):
             #TODO:remember to change it to 2048
             timesteps_per_batch=5120,
             clip_param=0.2, entcoeff=0.0,
-            max_iters=200,
+            max_iters=300,
             optim_epochs=6, optim_stepsize=3e-4, optim_batchsize=5120,
             gamma=0.995, lam=0.95, schedule='constant', #T
         )

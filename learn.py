@@ -107,7 +107,7 @@ def compete_learn(env, policy_func, *,
     saver = tf.train.Saver(parameters_to_save_list)
     restore = tf.train.Saver(parameters_to_save_list)
     U.initialize()
-    restore.restore(U.get_session(), "saveparameter/300/300.pkl")
+    restore.restore(U.get_session(), "parameter/500/500.pkl")
     U.function([], [], updates=[tf.assign(oldv, newv) for (oldv, newv) in
                 zipsame(pi[1].get_variables(), pi[0].get_variables())])()
     U.get_session().run
@@ -219,12 +219,12 @@ def compete_learn(env, policy_func, *,
         parameters_savers.append(temp_pi)
 
         # now I think when the
-        # if iters_so_far % 3 == 0:
-        #     sample_iteration = int(np.random.uniform(iters_so_far / 2, iters_so_far))
-        #     print("now assign the {}th parameter of agent0 to agent1".format(sample_iteration))
-        #     pi_restore = parameters_savers[sample_iteration]
-        #     U.function([], [], updates=[tf.assign(oldv, newv) for (oldv, newv) in
-        #                             zipsame(pi[1].get_variables(), pi_restore.get_variables())])()
+        if iters_so_far % 3 == 0:
+            sample_iteration = int(np.random.uniform(iters_so_far / 2, iters_so_far))
+            print("now assign the {}th parameter of agent0 to agent1".format(sample_iteration))
+            pi_restore = parameters_savers[sample_iteration]
+            U.function([], [], updates=[tf.assign(oldv, newv) for (oldv, newv) in
+                                    zipsame(pi[1].get_variables(), pi_restore.get_variables())])()
 
         logger.record_tabular("EpisodesSoFar", episodes_so_far)
         logger.record_tabular("TimestepsSoFar", timesteps_so_far)
@@ -242,4 +242,4 @@ def compete_learn(env, policy_func, *,
     # saver = tf.train.Saver(parameters_to_save_list)
     # parameters_path = 'parameter/'
     # tf.train.Saver()
-    save_path = saver.save(U.get_session(), "saveparameter/500/500.pkl")
+    save_path = saver.save(U.get_session(), "parameter/800/800.pkl")
